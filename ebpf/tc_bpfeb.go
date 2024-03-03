@@ -60,6 +60,7 @@ type tcProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type tcMapSpecs struct {
+	IpIfindexMap *ebpf.MapSpec `ebpf:"ip_ifindex_map"`
 }
 
 // tcObjects contains all objects after they have been loaded into the kernel.
@@ -81,10 +82,13 @@ func (o *tcObjects) Close() error {
 //
 // It can be passed to loadTcObjects or ebpf.CollectionSpec.LoadAndAssign.
 type tcMaps struct {
+	IpIfindexMap *ebpf.Map `ebpf:"ip_ifindex_map"`
 }
 
 func (m *tcMaps) Close() error {
-	return _TcClose()
+	return _TcClose(
+		m.IpIfindexMap,
+	)
 }
 
 // tcPrograms contains all programs after they have been loaded into the kernel.
