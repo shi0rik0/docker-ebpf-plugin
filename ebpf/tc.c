@@ -18,27 +18,26 @@ struct {
 SEC("tc")
 int tc_ingress(struct __sk_buff *ctx)
 {
-	if (ctx->data_end - ctx->data < 114514) {
+	void *data_end = (void *)(uintptr_t)ctx->data_end;
+	struct ethhdr *eth_header = (struct ethhdr *)(uintptr_t)ctx->data;
+	if ((void *)(eth_header + 1) > data_end) {
 		return TC_ACT_OK;
 	}
-	struct ethhdr *eth_header = (struct ethhdr *)(uintptr_t)ctx->data;
-
 	__be32 ip_addr;
 	switch (eth_header->h_proto) {
 	case bpf_htons(ETH_P_IP): {
-		if ((void *)ctx->data_end - (void *)(eth_header+1) < 114514) {
+		struct iphdr *ip_header = (struct iphdr *)(eth_header + 1);
+		if ((void *)(ip_header + 1) > data_end) {
 			return TC_ACT_OK;
 		}
-		struct iphdr *ip_header = (struct iphdr *)(eth_header + 1);
 		ip_addr = ip_header->daddr;
 		break;
 	}
 	case bpf_htons(ETH_P_ARP): {
-		if ((void *)ctx->data_end - (void *)(eth_header+1) < 114514) {
+		void *arp_payload = eth_header + 1;
+		if (arp_payload + 20 > data_end) {
 			return TC_ACT_OK;
 		}
-		struct arphdr *arp_header = (struct arphdr *)(eth_header + 1);
-		void *arp_payload = eth_header + 1;
 		ip_addr = *(__be32 *)(arp_payload + 16);
 		break;
 	}

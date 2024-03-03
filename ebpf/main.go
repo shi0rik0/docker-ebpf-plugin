@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/shi0rik0/docker-ebpf-plugin/tc"
 	"github.com/vishvananda/netlink"
@@ -19,6 +22,12 @@ func main() {
 	// Load the compiled eBPF ELF and load it into the kernel.
 	var objs tcObjects
 	if err := loadTcObjects(&objs, nil); err != nil {
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			for _, i := range ve.Log {
+				fmt.Print(i + "\n")
+			}
+		}
 		log.Fatal("Loading eBPF objects:", err)
 	}
 	defer objs.Close()
