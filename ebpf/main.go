@@ -23,7 +23,7 @@ func main() {
 	}
 	defer objs.Close()
 
-	iface, err := netlink.LinkByIndex(225)
+	iface, err := netlink.LinkByIndex(11)
 	if err != nil {
 		log.Fatal(err)
 	}
