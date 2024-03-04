@@ -41,9 +41,10 @@ func DetachTC(program *ebpf.Program, link netlink.Link, attachPoint AttachPoint)
 
 func makeFilterAttrs(link netlink.Link, attachPoint AttachPoint) netlink.FilterAttrs {
 	var parent uint32
-	if attachPoint == INGRESS {
+	switch attachPoint {
+	case INGRESS:
 		parent = netlink.MakeHandle(0xFFFF, 0xFFF2)
-	} else {
+	case EGRESS:
 		parent = netlink.MakeHandle(0xFFFF, 0xFFF3)
 	}
 
