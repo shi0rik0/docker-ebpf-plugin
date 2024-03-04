@@ -93,12 +93,12 @@ func main() {
 func ipAddrToUint32(ipAddr string) (uint32, error) {
 	ip := net.ParseIP(ipAddr)
 	if ip == nil {
-		return 0, errors.New("Invalid IP address")
+		return 0, errors.New("invalid IP address")
 	}
 
 	ipv4 := ip.To4()
 	if ipv4 == nil {
-		return 0, errors.New("Not an IPv4 address")
+		return 0, errors.New("not an IPv4 address")
 	}
 
 	return binary.LittleEndian.Uint32(ipv4), nil
