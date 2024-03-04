@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 
@@ -32,18 +34,40 @@ func main() {
 	}
 	defer objs.Close()
 
-	iface, err := netlink.LinkByIndex(11)
+	iface1, err := netlink.LinkByIndex(11)
+	if err != nil {
+		log.Fatal(err)
+	}
+	iface2, err := netlink.LinkByIndex(13)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Attach count_packets to the network interface.
-	err = tc.AttachTC(objs.TcIngress, iface, tc.INGRESS, "tc_ingress")
+	err = tc.AttachTC(objs.TcIngress, iface1, tc.INGRESS, "tc_ingress1")
+	if err != nil {
+		log.Fatal("Attaching TC:", err)
+	}
+	err = tc.AttachTC(objs.TcIngress, iface2, tc.INGRESS, "tc_ingress2")
 	if err != nil {
 		log.Fatal("Attaching TC:", err)
 	}
 
 	log.Printf("AttachTC成功！\n")
+
+	ip1, _ := ipAddrToUint32("10.0.0.2")
+	log.Printf("ip1: %d", ip1)
+	ip2, _ := ipAddrToUint32("10.0.0.3")
+	log.Printf("ip2: %d", ip2)
+
+	err = objs.IpIfindexMap.Put(ip1, uint32(11))
+	if err != nil {
+		log.Print(err)
+	}
+	err = objs.IpIfindexMap.Put(ip2, uint32(13))
+	if err != nil {
+		log.Print(err)
+	}
 
 	// Periodically fetch the packet counter from PktCount,
 	// exit the program when interrupted.
@@ -53,11 +77,29 @@ func main() {
 		select {
 		case <-stop:
 			log.Print("Received signal, exiting..")
-			err := tc.DetachTC(objs.TcIngress, iface, tc.INGRESS)
+			err := tc.DetachTC(objs.TcIngress, iface1, tc.INGRESS)
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = tc.DetachTC(objs.TcIngress, iface2, tc.INGRESS)
 			if err != nil {
 				log.Fatal(err)
 			}
 			return
 		}
 	}
+}
+
+func ipAddrToUint32(ipAddr string) (uint32, error) {
+	ip := net.ParseIP(ipAddr)
+	if ip == nil {
+		return 0, errors.New("Invalid IP address")
+	}
+
+	ipv4 := ip.To4()
+	if ipv4 == nil {
+		return 0, errors.New("Not an IPv4 address")
+	}
+
+	return binary.LittleEndian.Uint32(ipv4), nil
 }
