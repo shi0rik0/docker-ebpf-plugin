@@ -97,7 +97,8 @@ func (d *Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*networ
 	if _, ok := d.connectionInfoMap[cid]; ok {
 		return nil, errors.New("connection exists")
 	}
-	d.connectionInfoMap[cid] = connectionInfo{containerIp: removeSubnet(request.Interface.Address)}
+	ip := removeSubnet(request.Interface.Address)
+	d.connectionInfoMap[cid] = connectionInfo{containerIp: ip}
 	return nil, nil
 }
 
@@ -134,6 +135,7 @@ func (d *Driver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
 	}
 
 	delete(d.connectionInfoMap, cid)
+
 	return nil
 }
 
@@ -169,6 +171,13 @@ func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, erro
 	info := d.connectionInfoMap[cid]
 	info.hostVethName = name1
 	d.connectionInfoMap[cid] = info
+
+	link, _ := netlink.LinkByName(name1)
+	err = program.AddIpIfindexMapEntry(info.containerIp, uint32(link.Attrs().Index))
+	if err != nil {
+		return nil, err
+	}
+
 	d.counter++
 	return &network.JoinResponse{InterfaceName: network.InterfaceName{
 		SrcName:   name2,
