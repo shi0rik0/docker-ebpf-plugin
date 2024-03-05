@@ -1,9 +1,10 @@
-package main
+package driver
 
 import (
 	"errors"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/docker/go-plugins-helpers/network"
@@ -11,22 +12,19 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-const (
-	PLUGIN_NAME      = "ebpf"
-	HOST_VETH_PREFIX = "veth-ebpf-"
-)
+const HOST_VETH_PREFIX = "veth-ebpf-"
 
 type Driver struct {
-	mutex    sync.Mutex
-	vethName map[connectionID]string
-	program  map[string]*ebpf.Program
-	counter  int
+	mutex             sync.Mutex
+	connectionInfoMap map[connectionID]connectionInfo
+	programMap        map[string]*ebpf.Program
+	counter           int
 }
 
 func NewDriver() *Driver {
 	return &Driver{
-		vethName: make(map[connectionID]string),
-		program:  make(map[string]*ebpf.Program),
+		connectionInfoMap: make(map[connectionID]connectionInfo),
+		programMap:        make(map[string]*ebpf.Program),
 	}
 }
 
@@ -35,15 +33,29 @@ type connectionID struct {
 	EndpointID string
 }
 
+type connectionInfo struct {
+	hostVethName string
+	containerIp  string
+}
+
 func (d *Driver) GetCapabilities() (*network.CapabilitiesResponse, error) {
 	log.Printf("GetCapabilities()\n")
+
 	return &network.CapabilitiesResponse{Scope: "local", ConnectivityScope: "local"}, nil
 }
 
 func (d *Driver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	log.Printf("CreateNetwork(): NetworkID: %s, Gateway: %s\n", request.NetworkID[:6], request.IPv4Data[0].Gateway)
-	
-	return nil // TODO: impl
+
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	p, err := ebpf.LoadProgram()
+	if err != nil {
+		return err
+	}
+	d.programMap[request.NetworkID] = p
+	return nil
 }
 
 func (d *Driver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
@@ -52,8 +64,21 @@ func (d *Driver) AllocateNetwork(request *network.AllocateNetworkRequest) (*netw
 }
 
 func (d *Driver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
-	log.Printf("DeleteNetwork(): %v\n", request)
-	return nil // TODO: impl
+	log.Printf("DeleteNetwork(): NetworkID: %s\n", request.NetworkID[:6])
+
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	p, ok := d.programMap[request.NetworkID]
+	if !ok {
+		return errors.New("couldn't find network")
+	}
+	err := p.Close()
+	if err != nil {
+		return err
+	}
+	delete(d.programMap, request.NetworkID)
+	return nil
 }
 
 func (d *Driver) FreeNetwork(request *network.FreeNetworkRequest) error {
@@ -62,13 +87,54 @@ func (d *Driver) FreeNetwork(request *network.FreeNetworkRequest) error {
 }
 
 func (d *Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
-	log.Printf("CreateEndpoint(): %v\n", request)
-	return nil, nil // TODO: impl
+	log.Printf("CreateEndpoint(): NetworkID: %s, EndpointID: %s, IP: %s\n",
+		request.NetworkID[:6], request.EndpointID[:6], request.Interface.Address)
+
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
+	if _, ok := d.connectionInfoMap[cid]; ok {
+		return nil, errors.New("connection exists")
+	}
+	d.connectionInfoMap[cid] = connectionInfo{containerIp: removeSubnet(request.Interface.Address)}
+	return nil, nil
 }
 
 func (d *Driver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
-	log.Printf("DeleteEndpoint(): %v\n", request)
-	return nil // TODO: impl
+	log.Printf("DeleteEndpoint(): NetworkID: %s, EndpointID: %s\n", request.NetworkID[:6], request.EndpointID[:6])
+
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
+	info, ok := d.connectionInfoMap[cid]
+	if !ok {
+		return errors.New("connection doesn't exist")
+	}
+
+	program, ok := d.programMap[request.NetworkID]
+	if !ok {
+		return errors.New("couldn't find network")
+	}
+
+	err := program.DeleteIpIfindexMapEntry(info.containerIp)
+	if err != nil {
+		return err
+	}
+
+	err = program.Detach(info.hostVethName)
+	if err != nil {
+		return err
+	}
+
+	err = deleteVeth(info.hostVethName)
+	if err != nil {
+		return err
+	}
+
+	delete(d.connectionInfoMap, cid)
+	return nil
 }
 
 func (d *Driver) EndpointInfo(request *network.InfoRequest) (*network.InfoResponse, error) {
@@ -77,15 +143,10 @@ func (d *Driver) EndpointInfo(request *network.InfoRequest) (*network.InfoRespon
 }
 
 func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, error) {
-	log.Printf("Join(): %v\n", request)
+	log.Printf("Join(): NetworkID: %s, EndpointID: %s\n", request.NetworkID[:6], request.EndpointID[:6])
 
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-
-	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
-	if _, ok := d.vethName[cid]; ok {
-		return nil, errors.New("connection exists")
-	}
 
 	id := strconv.Itoa(d.counter)
 	name1 := HOST_VETH_PREFIX + id
@@ -95,12 +156,55 @@ func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, erro
 		return nil, err
 	}
 
-	d.vethName[cid] = name1
+	program, ok := d.programMap[request.NetworkID]
+	if !ok {
+		return nil, errors.New("couldn't find network")
+	}
+	err = program.Attach(name1, name1+id)
+	if err != nil {
+		return nil, err
+	}
+
+	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
+	info := d.connectionInfoMap[cid]
+	info.hostVethName = name1
+	d.connectionInfoMap[cid] = info
 	d.counter++
 	return &network.JoinResponse{InterfaceName: network.InterfaceName{
 		SrcName:   name2,
 		DstPrefix: "eth",
-	}}, nil // TODO: impl
+	}}, nil
+}
+
+func (d *Driver) Leave(request *network.LeaveRequest) error {
+	log.Printf("Leave(): NetworkID: %s, EndpointID: %s\n", request.NetworkID[:6], request.EndpointID[:6])
+	return nil // TODO: impl
+}
+
+func (d *Driver) DiscoverNew(request *network.DiscoveryNotification) error {
+	log.Printf("DiscoverNew(): %v\n", request)
+	return nil // TODO: impl
+}
+
+func (d *Driver) DiscoverDelete(request *network.DiscoveryNotification) error {
+	log.Printf("DiscoverDelete(): %v\n", request)
+	return nil // TODO: impl
+}
+
+func (d *Driver) ProgramExternalConnectivity(request *network.ProgramExternalConnectivityRequest) error {
+	log.Printf("ProgramExternalConnectivity(): %v\n", request)
+	return nil // TODO: impl
+}
+
+func (d *Driver) RevokeExternalConnectivity(request *network.RevokeExternalConnectivityRequest) error {
+	log.Printf("RevokeExternalConnectivity(): %v\n", request)
+	return nil // TODO: impl
+}
+
+// input: 192.168.34.12/16
+// output: 192.168.34.12
+func removeSubnet(ipAddr string) string {
+	return strings.Split(ipAddr, "/")[0]
 }
 
 func createVeth(name1 string, name2 string) error {
@@ -134,53 +238,4 @@ func deleteVeth(name string) error {
 		return err
 	}
 	return nil
-}
-
-func (d *Driver) Leave(request *network.LeaveRequest) error {
-	log.Printf("Leave(): %v\n", request)
-
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
-
-	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
-	name, ok := d.vethName[cid]
-	if !ok {
-		return errors.New("connection doesn't exist")
-	}
-
-	err := deleteVeth(name)
-	if err != nil {
-		return err
-	}
-
-	return nil // TODO: impl
-}
-
-func (d *Driver) DiscoverNew(request *network.DiscoveryNotification) error {
-	log.Printf("DiscoverNew(): %v\n", request)
-	return nil // TODO: impl
-}
-
-func (d *Driver) DiscoverDelete(request *network.DiscoveryNotification) error {
-	log.Printf("DiscoverDelete(): %v\n", request)
-	return nil // TODO: impl
-}
-
-func (d *Driver) ProgramExternalConnectivity(request *network.ProgramExternalConnectivityRequest) error {
-	log.Printf("ProgramExternalConnectivity(): %v\n", request)
-	return nil // TODO: impl
-}
-
-func (d *Driver) RevokeExternalConnectivity(request *network.RevokeExternalConnectivityRequest) error {
-	log.Printf("RevokeExternalConnectivity(): %v\n", request)
-	return nil // TODO: impl
-}
-
-func main() {
-	driver := NewDriver()
-	handler := network.NewHandler(driver)
-	err := handler.ServeUnix(PLUGIN_NAME, 0)
-	if err != nil {
-		log.Fatal(err)
-	}
 }

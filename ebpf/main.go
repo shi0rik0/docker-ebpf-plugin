@@ -1,11 +1,9 @@
 package ebpf
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 
@@ -88,18 +86,4 @@ func main() {
 			return
 		}
 	}
-}
-
-func ipAddrToUint32(ipAddr string) (uint32, error) {
-	ip := net.ParseIP(ipAddr)
-	if ip == nil {
-		return 0, errors.New("invalid IP address")
-	}
-
-	ipv4 := ip.To4()
-	if ipv4 == nil {
-		return 0, errors.New("not an IPv4 address")
-	}
-
-	return binary.LittleEndian.Uint32(ipv4), nil
 }

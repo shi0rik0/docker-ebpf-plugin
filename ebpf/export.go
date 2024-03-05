@@ -1,6 +1,10 @@
 package ebpf
 
 import (
+	"encoding/binary"
+	"errors"
+	"net"
+
 	"github.com/shi0rik0/docker-ebpf-plugin/tc"
 	"github.com/vishvananda/netlink"
 )
@@ -37,4 +41,34 @@ func (p *Program) Detach(interfaceName string) error {
 		return err
 	}
 	return tc.DetachTC(p.TcIngress, link, tc.INGRESS)
+}
+
+func (p *Program) AddIpIfindexMapEntry(ipAddr string, ifindex uint32) error {
+	ip, err := ipAddrToUint32(ipAddr)
+	if err != nil {
+		return err
+	}
+	return p.tcMaps.IpIfindexMap.Put(ip, ifindex)
+}
+
+func (p *Program) DeleteIpIfindexMapEntry(ipAddr string) error {
+	ip, err := ipAddrToUint32(ipAddr)
+	if err != nil {
+		return err
+	}
+	return p.tcMaps.IpIfindexMap.Delete(ip)
+}
+
+func ipAddrToUint32(ipAddr string) (uint32, error) {
+	ip := net.ParseIP(ipAddr)
+	if ip == nil {
+		return 0, errors.New("invalid IP address")
+	}
+
+	ipv4 := ip.To4()
+	if ipv4 == nil {
+		return 0, errors.New("not an IPv4 address")
+	}
+
+	return binary.LittleEndian.Uint32(ipv4), nil
 }
