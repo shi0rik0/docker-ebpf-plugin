@@ -7,28 +7,32 @@ import (
 	"sync"
 
 	"github.com/docker/go-plugins-helpers/network"
+	"github.com/shi0rik0/docker-ebpf-plugin/ebpf"
 	"github.com/vishvananda/netlink"
 )
 
 const (
-	PLUGIN_NAME = "ebpf"
+	PLUGIN_NAME      = "ebpf"
+	HOST_VETH_PREFIX = "veth-ebpf-"
 )
 
 type Driver struct {
 	mutex    sync.Mutex
-	vethName map[ConnectionID]string
+	vethName map[connectionID]string
+	program  map[string]*ebpf.Program
 	counter  int
-}
-
-type ConnectionID struct {
-	NetworkID  string
-	EndpointID string
 }
 
 func NewDriver() *Driver {
 	return &Driver{
-		vethName: make(map[ConnectionID]string),
+		vethName: make(map[connectionID]string),
+		program:  make(map[string]*ebpf.Program),
 	}
+}
+
+type connectionID struct {
+	NetworkID  string
+	EndpointID string
 }
 
 func (d *Driver) GetCapabilities() (*network.CapabilitiesResponse, error) {
@@ -38,6 +42,7 @@ func (d *Driver) GetCapabilities() (*network.CapabilitiesResponse, error) {
 
 func (d *Driver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	log.Printf("CreateNetwork(): NetworkID: %s, Gateway: %s\n", request.NetworkID[:6], request.IPv4Data[0].Gateway)
+	
 	return nil // TODO: impl
 }
 
@@ -77,13 +82,13 @@ func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, erro
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	cid := ConnectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
+	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
 	if _, ok := d.vethName[cid]; ok {
 		return nil, errors.New("connection exists")
 	}
 
 	id := strconv.Itoa(d.counter)
-	name1 := "veth-ebpf-" + id
+	name1 := HOST_VETH_PREFIX + id
 	name2 := "veth-temp-" + id
 	err := createVeth(name1, name2)
 	if err != nil {
@@ -137,7 +142,7 @@ func (d *Driver) Leave(request *network.LeaveRequest) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	cid := ConnectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
+	cid := connectionID{NetworkID: request.NetworkID, EndpointID: request.EndpointID}
 	name, ok := d.vethName[cid]
 	if !ok {
 		return errors.New("connection doesn't exist")

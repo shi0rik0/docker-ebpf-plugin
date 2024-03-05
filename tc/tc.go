@@ -1,6 +1,8 @@
 package tc
 
 import (
+	"fmt"
+
 	"github.com/cilium/ebpf"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -16,7 +18,7 @@ const (
 func AttachTC(program *ebpf.Program, link netlink.Link, attachPoint AttachPoint, name string) error {
 	err := createQdisc(link.Attrs().Index)
 	if err != nil {
-		return err
+		return fmt.Errorf("AttachTC createQdisc: %w", err)
 	}
 
 	filter := &netlink.BpfFilter{
@@ -25,7 +27,11 @@ func AttachTC(program *ebpf.Program, link netlink.Link, attachPoint AttachPoint,
 		Name:         name,
 		DirectAction: true,
 	}
-	return netlink.FilterAdd(filter)
+	err = netlink.FilterAdd(filter)
+	if err != nil {
+		return fmt.Errorf("AttachTC FilterAdd: %w", err)
+	}
+	return nil
 }
 
 func DetachTC(program *ebpf.Program, link netlink.Link, attachPoint AttachPoint) error {

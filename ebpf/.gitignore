@@ -1,0 +1,5 @@
+*_bpfeb.go
+*_bpfeb.o
+*_bpfel.go
+*_bpfel.o
+vmlinux.h
