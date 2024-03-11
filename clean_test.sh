@@ -1,5 +1,7 @@
-docker network disconnect ebpfnet1 test1
-docker network disconnect ebpfnet1 test2
-docker rm -f test1
-docker rm -f test2
-docker network rm ebpfnet1
+docker rm -f container1
+docker rm -f container2
+docker network rm overlay-net
+docker network rm ipvlan-net
+docker network rm macvlan-net
+docker network rm ebpf-net
+docker swarm leave --force
