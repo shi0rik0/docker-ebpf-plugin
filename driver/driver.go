@@ -58,9 +58,10 @@ func (d *Driver) CreateNetwork(request *network.CreateNetworkRequest) error {
 	return nil
 }
 
+// no need to implement it
 func (d *Driver) AllocateNetwork(request *network.AllocateNetworkRequest) (*network.AllocateNetworkResponse, error) {
 	log.Printf("AllocateNetwork(): %v\n", request)
-	return nil, nil // TODO: impl
+	return nil, nil
 }
 
 func (d *Driver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
@@ -81,9 +82,10 @@ func (d *Driver) DeleteNetwork(request *network.DeleteNetworkRequest) error {
 	return nil
 }
 
+// no need to implement it
 func (d *Driver) FreeNetwork(request *network.FreeNetworkRequest) error {
 	log.Printf("FreeNetwork(): %v\n", request)
-	return nil // TODO: impl
+	return nil
 }
 
 func (d *Driver) CreateEndpoint(request *network.CreateEndpointRequest) (*network.CreateEndpointResponse, error) {
@@ -139,9 +141,10 @@ func (d *Driver) DeleteEndpoint(request *network.DeleteEndpointRequest) error {
 	return nil
 }
 
+// no need to implement it
 func (d *Driver) EndpointInfo(request *network.InfoRequest) (*network.InfoResponse, error) {
 	log.Printf("EndpointInfo(): %v\n", request)
-	return nil, nil // TODO: impl
+	return nil, nil
 }
 
 func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, error) {
@@ -185,29 +188,34 @@ func (d *Driver) Join(request *network.JoinRequest) (*network.JoinResponse, erro
 	}}, nil
 }
 
+// no need to implement it
 func (d *Driver) Leave(request *network.LeaveRequest) error {
 	log.Printf("Leave(): NetworkID: %s, EndpointID: %s\n", request.NetworkID[:6], request.EndpointID[:6])
-	return nil // TODO: impl
+	return nil
 }
 
+// no need to implement it
 func (d *Driver) DiscoverNew(request *network.DiscoveryNotification) error {
 	log.Printf("DiscoverNew(): %v\n", request)
-	return nil // TODO: impl
+	return nil
 }
 
+// no need to implement it
 func (d *Driver) DiscoverDelete(request *network.DiscoveryNotification) error {
 	log.Printf("DiscoverDelete(): %v\n", request)
-	return nil // TODO: impl
+	return nil
 }
 
+// no need to implement it
 func (d *Driver) ProgramExternalConnectivity(request *network.ProgramExternalConnectivityRequest) error {
 	log.Printf("ProgramExternalConnectivity(): %v\n", request)
-	return nil // TODO: impl
+	return nil
 }
 
+// no need to implement it
 func (d *Driver) RevokeExternalConnectivity(request *network.RevokeExternalConnectivityRequest) error {
 	log.Printf("RevokeExternalConnectivity(): %v\n", request)
-	return nil // TODO: impl
+	return nil
 }
 
 // input: 192.168.34.12/16
