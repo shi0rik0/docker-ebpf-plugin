@@ -4,8 +4,8 @@
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 
-#define likely(x)		__builtin_expect(!!(x), 1)
-#define unlikely(x)		__builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 #define TC_ACT_OK 0
 #define ETH_P_IP 0x0800
