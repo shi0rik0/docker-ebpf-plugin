@@ -34,6 +34,9 @@ def parse_iperf3_result(s):
         return match.group(1)
     else:
         return None
+
+def parse_netperf_result(s):
+    return s.split('\n')[-3].split()[-1]
     
 def get_ip(driver):
     r = [None] * 2
@@ -47,7 +50,11 @@ def get_ip(driver):
                 r[1] = ip
     return r
 
+
+ip = get_ip(args.d)[0]
 if args.t == 'iperf3':
-    ip = get_ip(args.d)[0]
     r = run(f'docker exec container2 iperf3 -c {ip} -f m')
     print(parse_iperf3_result(r))
+elif args.t == 'netperf':
+    r = run(f'docker exec container2 netperf -t TCP_RR -H {ip}')
+    print(parse_netperf_result(r))
