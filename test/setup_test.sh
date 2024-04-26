@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+
+sudo ../bin/denp &
 docker swarm init
 docker network create --driver overlay --attachable overlay-net
 docker network create --driver ipvlan ipvlan-net

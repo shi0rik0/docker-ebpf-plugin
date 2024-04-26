@@ -5,13 +5,14 @@ import argparse
 import json
 import re
 
-# 创建解析器
+
 parser = argparse.ArgumentParser()
 
-# 添加参数
 parser.add_argument('-d', choices=['bridge', 'overlay', 'ipvlan', 'macvlan', 'ebpf'], required=True, help='')
 parser.add_argument('-t', choices=['iperf3', 'netperf'], required=True, help='')
 parser.add_argument('-f', type=str, help='')
+
+args = parser.parse_args()
 
 A = {
     'bridge': 'bridge',
@@ -21,11 +22,11 @@ A = {
     'ebpf': 'ebpf-net',
 }
 
-# 解析命令行参数
-args = parser.parse_args()
-
 def run(cmd):
     return subprocess.run(cmd.split(' '), stdout=subprocess.PIPE).stdout.decode('utf-8')
+
+def popen(cmd):
+    subprocess.Popen(cmd.split(' '))
 
 def parse_iperf3_result(s):
     s = [i for i in s.split('\n') if 'receiver' in i][0]
@@ -50,7 +51,8 @@ def get_ip(driver):
                 r[1] = ip
     return r
 
-
+if args.f is not None:
+    popen(f'./make_flamegraph.sh 9 {args.f}')
 ip = get_ip(args.d)[0]
 if args.t == 'iperf3':
     r = run(f'docker exec container2 iperf3 -c {ip} -f m')
