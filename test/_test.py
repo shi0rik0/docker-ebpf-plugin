@@ -25,8 +25,9 @@ A = {
 def run(cmd):
     return subprocess.run(cmd.split(' '), stdout=subprocess.PIPE).stdout.decode('utf-8')
 
-def popen(cmd):
-    subprocess.Popen(cmd.split(' '))
+def run2(cmd):
+    subprocess.run(cmd.split(' '))
+
 
 def parse_iperf3_result(s):
     s = [i for i in s.split('\n') if 'receiver' in i][0]
@@ -52,11 +53,11 @@ def get_ip(driver):
     return r
 
 if args.f is not None:
-    popen(f'./make_flamegraph.sh 9 {args.f}')
+    run2(f'screen -dm ./make_flamegraph.sh 50 {args.f}')
 ip = get_ip(args.d)[0]
 if args.t == 'iperf3':
-    r = run(f'docker exec container2 iperf3 -c {ip} -f m')
+    r = run(f'docker exec container2 iperf3 -c {ip} -f m -t 60')
     print(parse_iperf3_result(r))
 elif args.t == 'netperf':
-    r = run(f'docker exec container2 netperf -t TCP_RR -H {ip}')
+    r = run(f'docker exec container2 netperf -t TCP_RR -H {ip} -l 60')
     print(parse_netperf_result(r))

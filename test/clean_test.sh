@@ -7,4 +7,4 @@ docker network rm ipvlan-net
 docker network rm macvlan-net
 docker network rm ebpf-net
 docker swarm leave --force
-sudo pkill denp
+screen -S denp -X quit

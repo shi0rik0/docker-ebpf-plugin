@@ -13,4 +13,4 @@ run: bin/denp
 clean:
 	rm -rf bin ebpf/tc_bpfeb.go ebpf/tc_bpfeb.o ebpf/tc_bpfel.go ebpf/tc_bpfel.o ebpf/vmlinux.h
 
-XXX:
+XXX: ;
